@@ -11,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/kkjdanie/bgg-mcp/prompts"
-	"github.com/kkjdanie/bgg-mcp/resources"
-	"github.com/kkjdanie/bgg-mcp/tools"
+	"github.com/faegents/bgg-mcp/prompts"
+	"github.com/faegents/bgg-mcp/resources"
+	"github.com/faegents/bgg-mcp/tools"
 	"github.com/kkjdaniel/gogeek/v2"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -55,7 +55,7 @@ func createClientFromSessionConfig(apiKey, cookie string) *gogeek.Client {
 func createMCPServer(client *gogeek.Client) *server.MCPServer {
 	s := server.NewMCPServer(
 		"BGG MCP",
-		"1.6.0",
+		"1.7.0",
 		server.WithResourceCapabilities(true, true),
 		server.WithPromptCapabilities(true),
 		server.WithLogging(),
@@ -91,6 +91,18 @@ func createMCPServer(client *gogeek.Client) *server.MCPServer {
 
 	threadDetailsTool, threadDetailsHandler := tools.ThreadDetailsTool(client)
 	s.AddTool(threadDetailsTool, threadDetailsHandler)
+
+	playsTool, playsHandler := tools.PlaysTool(client)
+	s.AddTool(playsTool, playsHandler)
+
+	gameFamilyTool, gameFamilyHandler := tools.GameFamilyTool(client)
+	s.AddTool(gameFamilyTool, gameFamilyHandler)
+
+	nlpSearchTool, nlpSearchHandler := tools.NLPSearchTool()
+	s.AddTool(nlpSearchTool, nlpSearchHandler)
+
+	graphRecommendTool, graphRecommendHandler := tools.GraphRecommendTool()
+	s.AddTool(graphRecommendTool, graphRecommendHandler)
 
 	hotnessResource, hotnessResourceHandler := resources.HotnessResource(client)
 	s.AddResource(hotnessResource, hotnessResourceHandler)

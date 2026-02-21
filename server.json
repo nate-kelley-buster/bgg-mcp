@@ -1,17 +1,17 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
-  "name": "io.github.kkjdaniel/bgg-mcp",
+  "name": "io.github.faegents/bgg-mcp",
   "title": "BoardGameGeek MCP Server",
-  "description": "BoardGameGeek MCP server providing access to BGG API data through standardized tools",
+  "description": "BoardGameGeek MCP server providing access to BGG API data through standardized tools. Extended with play history, game family/series lookup, and BGCollector graph intelligence.",
   "repository": {
-    "url": "https://github.com/kkjdaniel/bgg-mcp",
+    "url": "https://github.com/faegents/bgg-mcp",
     "source": "github"
   },
-  "version": "1.6.0",
+  "version": "1.7.0",
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "docker.io/kdaniel/bgg-mcp:1.6.0",
+      "identifier": "docker.io/kdaniel/bgg-mcp:1.6.1",
       "transport": {
         "type": "stdio"
       },
@@ -22,11 +22,15 @@
         },
         {
           "name": "BGG_COOKIE",
-          "description": "Cookie string for BGG authentication (alternative to API key). Format: 'bggusername=user; bggpassword=pass; SessionID=xyz'"
+          "description": "Cookie string for BGG authentication (alternative to API key)."
         },
         {
           "name": "BGG_USERNAME",
           "description": "Your BoardGameGeek username for references such as ME or MY in prompts"
+        },
+        {
+          "name": "BGC_API_URL",
+          "description": "BGCollector FastAPI backend URL for NLP search and graph recommendations (default: http://localhost:8000)"
         }
       ]
     }

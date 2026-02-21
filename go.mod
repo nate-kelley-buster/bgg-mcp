@@ -1,4 +1,4 @@
-module github.com/kkjdanie/bgg-mcp
+module github.com/faegents/bgg-mcp
 
 go 1.23.0
 
