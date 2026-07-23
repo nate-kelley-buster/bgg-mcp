@@ -13,6 +13,7 @@ import (
 
 	"github.com/faegents/bgg-mcp/prompts"
 	"github.com/faegents/bgg-mcp/resources"
+	"github.com/faegents/bgg-mcp/session"
 	"github.com/faegents/bgg-mcp/tools"
 	"github.com/kkjdaniel/gogeek/v2"
 	"github.com/mark3labs/mcp-go/server"
@@ -52,7 +53,17 @@ func createClientFromSessionConfig(apiKey, cookie string) *gogeek.Client {
 	return gogeek.NewClient()
 }
 
-func createMCPServer(client *gogeek.Client) *server.MCPServer {
+// createWriteSessionFromEnv builds the write-auth session from BGG_USERNAME
+// and BGG_PASSWORD. Deliberately env-only, not exposed via the HTTP mode's
+// query-param session config (parseSessionConfig) like the other three vars:
+// a password in a URL query string risks being captured in proxy/access
+// logs, which the other credentials (an API key, a cookie meant to be
+// short-lived) don't carry the same risk for.
+func createWriteSessionFromEnv(client *gogeek.Client) *session.WriteSession {
+	return session.NewWriteSession(client, os.Getenv("BGG_USERNAME"), os.Getenv("BGG_PASSWORD"))
+}
+
+func createMCPServer(client *gogeek.Client, ws *session.WriteSession) *server.MCPServer {
 	s := server.NewMCPServer(
 		"BGG MCP",
 		"1.7.0",
@@ -104,6 +115,36 @@ func createMCPServer(client *gogeek.Client) *server.MCPServer {
 	graphRecommendTool, graphRecommendHandler := tools.GraphRecommendTool()
 	s.AddTool(graphRecommendTool, graphRecommendHandler)
 
+	versionsTool, versionsHandler := tools.VersionsTool(client)
+	s.AddTool(versionsTool, versionsHandler)
+
+	geeklistTool, geeklistHandler := tools.GeeklistTool(client)
+	s.AddTool(geeklistTool, geeklistHandler)
+
+	updateCollectionStatusTool, updateCollectionStatusHandler := tools.UpdateCollectionStatusTool(client, ws)
+	s.AddTool(updateCollectionStatusTool, updateCollectionStatusHandler)
+
+	removeFromCollectionTool, removeFromCollectionHandler := tools.RemoveFromCollectionTool(client, ws)
+	s.AddTool(removeFromCollectionTool, removeFromCollectionHandler)
+
+	rateGameTool, rateGameHandler := tools.RateGameTool(client, ws)
+	s.AddTool(rateGameTool, rateGameHandler)
+
+	setCollectionNotesTool, setCollectionNotesHandler := tools.SetCollectionNotesTool(client, ws)
+	s.AddTool(setCollectionNotesTool, setCollectionNotesHandler)
+
+	logPlayTool, logPlayHandler := tools.LogPlayTool(client, ws)
+	s.AddTool(logPlayTool, logPlayHandler)
+
+	updatePlayTool, updatePlayHandler := tools.UpdatePlayTool(client, ws)
+	s.AddTool(updatePlayTool, updatePlayHandler)
+
+	deletePlayTool, deletePlayHandler := tools.DeletePlayTool(ws)
+	s.AddTool(deletePlayTool, deletePlayHandler)
+
+	batchUpdateCollectionTool, batchUpdateCollectionHandler := tools.BatchUpdateCollectionTool(client, ws)
+	s.AddTool(batchUpdateCollectionTool, batchUpdateCollectionHandler)
+
 	hotnessResource, hotnessResourceHandler := resources.HotnessResource(client)
 	s.AddResource(hotnessResource, hotnessResourceHandler)
 
@@ -118,7 +159,7 @@ func createMCPServer(client *gogeek.Client) *server.MCPServer {
 func main() {
 	var mode string
 	var port string
-	
+
 	flag.StringVar(&mode, "mode", "stdio", "Server mode: stdio or http")
 	flag.StringVar(&port, "port", "8080", "Port for HTTP server (only used in http mode)")
 	flag.Parse()
@@ -126,7 +167,7 @@ func main() {
 	if envMode := os.Getenv("MCP_MODE"); envMode != "" {
 		mode = envMode
 	}
-	
+
 	if envPort := os.Getenv("MCP_PORT"); envPort != "" {
 		port = envPort
 	}
@@ -136,7 +177,8 @@ func main() {
 		runHTTPServer(port)
 	case "stdio":
 		client := initializeGoGeekClient()
-		mcpServer := createMCPServer(client)
+		ws := createWriteSessionFromEnv(client)
+		mcpServer := createMCPServer(client, ws)
 		runStdioServer(mcpServer)
 	default:
 		log.Fatalf("Invalid mode: %s. Use 'stdio' or 'http'", mode)
@@ -177,6 +219,11 @@ func runHTTPServer(port string) {
       "type": "string",
       "title": "BGG Username",
       "description": "Your BGG username for personalized features"
+    },
+    "BGG_PASSWORD": {
+      "type": "string",
+      "title": "BGG Password (required only for write tools)",
+      "description": "Your BGG account password. Only needed to use write tools (adding/updating your collection, logging plays). Read-only tools never need this. Set as a server-side environment variable only — not accepted as a query parameter, since passwords in URLs risk exposure via proxy/access logs."
     }
   }
 }`
@@ -200,7 +247,12 @@ func runHTTPServer(port string) {
 			defer os.Setenv("BGG_USERNAME", originalUsername)
 		}
 
-		sessionMCPServer := createMCPServer(sessionClient)
+		// Write session credentials are env-only in HTTP mode too — see
+		// createWriteSessionFromEnv's comment for why BGG_PASSWORD isn't
+		// accepted as a query parameter like the other session config vars.
+		sessionWS := createWriteSessionFromEnv(sessionClient)
+
+		sessionMCPServer := createMCPServer(sessionClient, sessionWS)
 
 		httpServer := server.NewStreamableHTTPServer(sessionMCPServer,
 			server.WithEndpointPath("/mcp"),

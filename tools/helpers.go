@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/faegents/bgg-mcp/session"
 	"github.com/kkjdaniel/gogeek/v2"
 	"github.com/kkjdaniel/gogeek/v2/search"
 	"github.com/kkjdaniel/gogeek/v2/thing"
+	"github.com/mark3labs/mcp-go/mcp"
 )
 
 type EssentialGameInfo struct {
@@ -84,7 +86,7 @@ func extractEssentialInfo(item thing.Item) EssentialGameInfo {
 	var publishers []string
 	var categories []string
 	var mechanics []string
-	
+
 	for _, link := range item.Links {
 		switch link.Type {
 		case "boardgamedesigner":
@@ -97,7 +99,7 @@ func extractEssentialInfo(item thing.Item) EssentialGameInfo {
 			mechanics = append(mechanics, link.Value)
 		}
 	}
-	
+
 	if len(designers) > 0 {
 		info.Designer = strings.Join(designers, ", ")
 	}
@@ -133,30 +135,70 @@ func findBestGameMatch(client *gogeek.Client, gameName string) (*search.SearchRe
 			return nil, fmt.Errorf("no games found matching '%s'", gameName)
 		}
 	}
-	
+
 	bestMatch := &searchResults.Items[0]
 	gameNameLower := strings.ToLower(gameName)
-	
+
 	for i := range searchResults.Items {
 		item := &searchResults.Items[i]
 		itemNameLower := strings.ToLower(item.Name.Value)
-		
+
 		if itemNameLower == gameNameLower {
 			return item, nil
 		}
-		
+
 		if bestMatch.Type == "boardgameexpansion" && item.Type == "boardgame" {
 			if strings.Contains(itemNameLower, gameNameLower) || strings.Contains(gameNameLower, itemNameLower) {
 				bestMatch = item
 			}
 		}
-		
+
 		if bestMatch.Type == item.Type {
 			if strings.HasPrefix(itemNameLower, gameNameLower) && !strings.HasPrefix(strings.ToLower(bestMatch.Name.Value), gameNameLower) {
 				bestMatch = item
 			}
 		}
 	}
-	
+
 	return bestMatch, nil
+}
+
+// resolveGameID extracts a BGG game ID from tool arguments, accepting either
+// an explicit "id" (a JSON number, decoded as float64) or a "name" resolved
+// via findBestGameMatch. It also returns the resolved game's name so callers
+// can confirm which game a name-based lookup actually matched — useful for
+// write tools, where an ambiguous name silently resolving to the wrong game
+// would mutate the wrong collection item.
+func resolveGameID(client *gogeek.Client, arguments map[string]interface{}) (id int, name string, err error) {
+	if idVal, ok := arguments["id"].(float64); ok && idVal > 0 {
+		return int(idVal), "", nil
+	}
+
+	gameName, ok := arguments["name"].(string)
+	if !ok || gameName == "" {
+		return 0, "", fmt.Errorf("either 'id' or 'name' is required")
+	}
+
+	match, err := findBestGameMatch(client, gameName)
+	if err != nil {
+		return 0, "", err
+	}
+
+	return match.ID, match.Name.Value, nil
+}
+
+// gameReferer builds the Referer header write requests use, matching the
+// page a browser would actually be on when submitting the equivalent form.
+func gameReferer(gameID int) string {
+	return fmt.Sprintf("https://boardgamegeek.com/boardgame/%d", gameID)
+}
+
+// requireWriteSession is a shared guard for every write tool's handler: if ws
+// is nil or has no credentials, it returns a friendly text result and true
+// (meaning "return this immediately"); otherwise it returns (nil, false).
+func requireWriteSession(ws *session.WriteSession) (*mcp.CallToolResult, bool) {
+	if ws == nil || !ws.Enabled() {
+		return mcp.NewToolResultText("Write operations require BGG_USERNAME and BGG_PASSWORD environment variables to be set."), true
+	}
+	return nil, false
 }

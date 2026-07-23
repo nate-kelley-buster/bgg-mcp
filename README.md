@@ -47,12 +47,33 @@ Game recommendations are powered by [Recommend.Games](https://recommend.games/),
 | `bgg-trade-finder`   | Find trading opportunities between two BGG users                            |
 | `bgg-recommender`    | Get game recommendations based on similarity to a specific game             |
 | `bgg-thread-details` | Get the full content of a specific BGG forum thread including all posts     |
+| `bgg-plays`          | Get a user's BGG play history                                               |
+| `bgg-game-family`    | Look up board game families/series, or list all games in a family           |
+| `bgg-versions`       | Get edition/printing/version data for a game (publishers, languages, dimensions, product codes) |
+| `bgg-geeklist`       | Read a BGG GeekList by id (legacy XML API1 — read-only, BGG has no GeekList write API) |
 
 ### 🧪 Experimental Tools
 
 | Tool        | Description                                                                                |
 | ----------- | ------------------------------------------------------------------------------------------ |
 | `bgg-rules` | Answer rules questions by searching BGG forums for relevant discussions and clarifications |
+| `bgc-nlp-search` | Natural-language game search via semantic embeddings. **Requires a separate BGCollector backend** (not included in this repo) — will not work without one running. |
+| `bgc-graph-recommend` | Graph-based recommendations via a Neo4j knowledge graph. **Requires a separate BGCollector backend** (not included in this repo) — will not work without one running. |
+
+### ✍️ Write Tools
+
+BoardGameGeek has no official write API — these tools use undocumented endpoints BGG's own website calls internally, authenticated via a real login (see [Write Authentication](#write-authentication) below). `bgg-update-collection-status` (the `own` flag) and `bgg-log-play` are confirmed working against a real reference implementation; everything else is a best-effort implementation inferred from BGG's own documented field names and has not yet been verified live — check each tool's description for its confidence level before relying on it.
+
+| Tool                          | Description                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `bgg-update-collection-status` | Set collection status flags (own, want, want to play, want to buy, for trade, preordered, previously owned, wishlist + priority) |
+| `bgg-remove-from-collection`   | Remove a game from your collection (unverified — see tool description)       |
+| `bgg-rate-game`                | Set your rating for a game                                                   |
+| `bgg-set-collection-notes`     | Set the private notes/comment field on a collection item                     |
+| `bgg-log-play`                 | Log a play to your BGG play history — **confirmed working**                  |
+| `bgg-update-play`              | Edit an existing play by play id (unverified)                                |
+| `bgg-delete-play`              | Delete a play by play id (unverified)                                        |
+| `bgg-batch-update-collection`  | Apply a collection status change to many games in one call, with per-item success/failure reporting |
 
 ## Resources
 
@@ -145,6 +166,19 @@ Here are some example prompts you can use to interact with the BGG MCP tools:
 ```
 
 Note: Include "use bgg-rules" in your question to ensure the AI searches BGG forums for answers.
+
+### ✍️ Collection & Play Writes
+
+```
+"Mark Wingspan as owned on my BGG collection"
+"Add Ark Nova to my wishlist with priority 2"
+"Rate Gloomhaven a 9"
+"Remove Small World from my collection"
+"Log a play of Azul from tonight, 4 players, I won"
+"Mark all of these as owned: Wingspan, Azul, Gloomhaven, Ark Nova"
+```
+
+Requires `BGG_PASSWORD` to be set (see [Write Authentication](#write-authentication)). See the [Write Tools](#️-write-tools) table for which of these are confirmed working vs. best-effort.
 
 ## Installation
 
@@ -269,3 +303,21 @@ This enables:
 - **AI assistance**: The AI can automatically use your username for comparisons and analysis
 
 **Note**: When you use self-references (me, my, I) without setting BGG_USERNAME, you'll get a clear error message.
+
+### Write Authentication
+
+The [write tools](#️-write-tools) need a real logged-in BGG session, not just an API key — BGG's write endpoints are undocumented and check for an actual browser-style login. Set both `BGG_USERNAME` and `BGG_PASSWORD`:
+
+```json
+"bgg": {
+    "env": {
+        "BGG_API_KEY": "your_api_key_here",
+        "BGG_USERNAME": "your_bgg_username",
+        "BGG_PASSWORD": "your_bgg_password"
+    }
+}
+```
+
+- Login is lazy — nothing touches the network until you actually call a write tool, so leaving `BGG_PASSWORD` unset is fine if you only want read access.
+- `BGG_PASSWORD` is **env-only**. Unlike `BGG_API_KEY`/`BGG_COOKIE`/`BGG_USERNAME`, it is deliberately not accepted as an HTTP-mode query parameter, since a password in a URL risks exposure via proxy or access logs.
+- These endpoints are unofficial and reverse-engineered — see each write tool's description for whether its exact payload has been confirmed against a live response or is still best-effort.

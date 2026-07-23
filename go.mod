@@ -7,6 +7,7 @@ toolchain go1.24.3
 require (
 	github.com/kkjdaniel/gogeek/v2 v2.0.0
 	github.com/mark3labs/mcp-go v0.43.2
+	go.uber.org/ratelimit v0.3.1
 )
 
 require (
@@ -20,6 +21,5 @@ require (
 	github.com/spf13/cast v1.7.1 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
-	go.uber.org/ratelimit v0.3.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
