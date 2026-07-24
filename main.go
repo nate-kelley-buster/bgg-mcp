@@ -133,6 +133,9 @@ func createMCPServer(client *gogeek.Client, ws *session.WriteSession) *server.MC
 	geeklistTool, geeklistHandler := tools.GeeklistTool(client)
 	s.AddTool(geeklistTool, geeklistHandler)
 
+	authStatusTool, authStatusHandler := tools.AuthStatusTool(client, ws)
+	s.AddTool(authStatusTool, authStatusHandler)
+
 	updateCollectionStatusTool, updateCollectionStatusHandler := tools.UpdateCollectionStatusTool(client, ws)
 	s.AddTool(updateCollectionStatusTool, updateCollectionStatusHandler)
 
