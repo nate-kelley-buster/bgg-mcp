@@ -69,3 +69,10 @@ func TestPost_DisabledSessionFailsWithoutNetworkCall(t *testing.T) {
 		t.Error("Post on a disabled session should error without attempting a request")
 	}
 }
+
+func TestCookieHeader_DisabledSessionFailsWithoutNetworkCall(t *testing.T) {
+	ws := NewWriteSession(gogeek.NewClient(), "", "")
+	if _, err := ws.CookieHeader(); err == nil {
+		t.Error("CookieHeader on a disabled session should error without attempting a login")
+	}
+}

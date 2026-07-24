@@ -253,7 +253,7 @@ More details for configuring Claude can be [found here](https://modelcontextprot
 
 BGG MCP v2.0+ uses the GoGeek v2.0 library which requires authentication for reliable access to BoardGameGeek's API.
 
-You can configure authentication using **either** `BGG_API_KEY` (recommended) or `BGG_COOKIE`:
+You can configure authentication using `BGG_API_KEY` (recommended), `BGG_COOKIE`, or — if you don't have an API key yet (BGG's application approval can take several days) — just `BGG_USERNAME`/`BGG_PASSWORD`. If neither an API key nor a cookie is set but both of those are, the server logs in with them once and reuses that session's cookie for read requests too, the same login the [write tools](#️-write-tools) already need — so you don't have to wait on an API key to get started. Precedence: `BGG_API_KEY` > `BGG_COOKIE` > `BGG_USERNAME`/`BGG_PASSWORD` > unauthenticated.
 
 #### Authentication Setup
 
@@ -318,6 +318,6 @@ The [write tools](#️-write-tools) need a real logged-in BGG session, not just 
 }
 ```
 
-- Login is lazy — nothing touches the network until you actually call a write tool, so leaving `BGG_PASSWORD` unset is fine if you only want read access.
+- Login for the *write* tools is lazy — nothing touches the network until you actually call one, so leaving `BGG_PASSWORD` unset is fine if you only want read access. (If you set `BGG_USERNAME`/`BGG_PASSWORD` with no API key/cookie, the *read* client does log in once at startup to borrow that session for reads too — see [Authentication](#authentication) above.)
 - `BGG_PASSWORD` is **env-only**. Unlike `BGG_API_KEY`/`BGG_COOKIE`/`BGG_USERNAME`, it is deliberately not accepted as an HTTP-mode query parameter, since a password in a URL risks exposure via proxy or access logs.
 - These endpoints are unofficial and reverse-engineered — see each write tool's description for whether its exact payload has been confirmed against a live response or is still best-effort.

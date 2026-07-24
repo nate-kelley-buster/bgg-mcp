@@ -19,17 +19,29 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func initializeGoGeekClient() *gogeek.Client {
-	return createClientFromEnv()
-}
-
-func createClientFromEnv() *gogeek.Client {
+// createClientFromEnv builds the read client. BGG_API_KEY is preferred, then
+// BGG_COOKIE. If neither is set but ws has BGG_USERNAME/BGG_PASSWORD, it logs
+// in via ws (the same login the write tools use) and reuses that session's
+// cookie for reads too — so a user willing to provide their password never
+// needs a separate API key. A failed fallback login is a warning, not fatal:
+// the server still starts with an unauthenticated client, which BGG may
+// rate-limit or reject for some endpoints, rather than refusing to run.
+func createClientFromEnv(ws *session.WriteSession) *gogeek.Client {
 	if apiKey := os.Getenv("BGG_API_KEY"); apiKey != "" {
 		return gogeek.NewClient(gogeek.WithAPIKey(apiKey))
 	}
 
 	if cookie := os.Getenv("BGG_COOKIE"); cookie != "" {
 		return gogeek.NewClient(gogeek.WithCookie(cookie))
+	}
+
+	if ws != nil && ws.Enabled() {
+		cookie, err := ws.CookieHeader()
+		if err != nil {
+			log.Printf("Warning: BGG_USERNAME/BGG_PASSWORD login for read access failed (%v) — falling back to an unauthenticated client, which BGG may rate-limit or reject", err)
+		} else {
+			return gogeek.NewClient(gogeek.WithCookie(cookie))
+		}
 	}
 
 	return gogeek.NewClient()
@@ -176,8 +188,8 @@ func main() {
 	case "http":
 		runHTTPServer(port)
 	case "stdio":
-		client := initializeGoGeekClient()
-		ws := createWriteSessionFromEnv(client)
+		ws := createWriteSessionFromEnv(gogeek.NewClient())
+		client := createClientFromEnv(ws)
 		mcpServer := createMCPServer(client, ws)
 		runStdioServer(mcpServer)
 	default:
@@ -233,12 +245,17 @@ func runHTTPServer(port string) {
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
 		apiKey, cookie, username := parseSessionConfig(r)
 
+		// Write session credentials are env-only in HTTP mode too — see
+		// createWriteSessionFromEnv's comment for why BGG_PASSWORD isn't
+		// accepted as a query parameter like the other session config vars.
+		sessionWS := createWriteSessionFromEnv(gogeek.NewClient())
+
 		var sessionClient *gogeek.Client
 		if apiKey != "" || cookie != "" {
 			sessionClient = createClientFromSessionConfig(apiKey, cookie)
 			log.Printf("Using session configuration for request")
 		} else {
-			sessionClient = createClientFromEnv()
+			sessionClient = createClientFromEnv(sessionWS)
 		}
 
 		originalUsername := os.Getenv("BGG_USERNAME")
@@ -246,11 +263,6 @@ func runHTTPServer(port string) {
 			os.Setenv("BGG_USERNAME", username)
 			defer os.Setenv("BGG_USERNAME", originalUsername)
 		}
-
-		// Write session credentials are env-only in HTTP mode too — see
-		// createWriteSessionFromEnv's comment for why BGG_PASSWORD isn't
-		// accepted as a query parameter like the other session config vars.
-		sessionWS := createWriteSessionFromEnv(sessionClient)
 
 		sessionMCPServer := createMCPServer(sessionClient, sessionWS)
 

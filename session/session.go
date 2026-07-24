@@ -13,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -104,6 +105,43 @@ func (s *WriteSession) Post(path, referer string, payload any) ([]byte, int, err
 	}
 
 	return body, status, nil
+}
+
+// CookieHeader ensures a login has happened and returns the resulting
+// session's Cookie header value for boardgamegeek.com. This lets a caller
+// authenticate read-only XML API2 requests (via gogeek's WithCookie option)
+// using the exact same username/password login this package already
+// performs for writes — so a user who only has BGG_USERNAME/BGG_PASSWORD
+// never needs a separate BGG_API_KEY at all.
+func (s *WriteSession) CookieHeader() (string, error) {
+	if !s.Enabled() {
+		return "", fmt.Errorf("BGG_USERNAME and BGG_PASSWORD must be set")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.loggedIn {
+		if err := s.login(); err != nil {
+			return "", fmt.Errorf("login failed: %w", err)
+		}
+	}
+
+	base, err := url.Parse(bggBaseURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse BGG base URL: %w", err)
+	}
+
+	cookies := s.http.Jar.Cookies(base)
+	if len(cookies) == 0 {
+		return "", fmt.Errorf("login succeeded but no session cookies were set")
+	}
+
+	parts := make([]string, len(cookies))
+	for i, c := range cookies {
+		parts[i] = c.Name + "=" + c.Value
+	}
+	return strings.Join(parts, "; "), nil
 }
 
 func (s *WriteSession) login() error {
